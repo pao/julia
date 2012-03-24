@@ -334,7 +334,7 @@ function oderosenbrock{T}(F::Function, G::Function, tspan::AbstractVector, x0::A
     while tspan[solstep] < max(tspan)
         ts = tspan[solstep]
         hs = h[solstep]
-        xs = reshape(x[solstep,:], size(x0))
+        xs = x[solstep,:][:]
         dFdx = G(ts, xs)
         jac = eye(size(dFdx)[1])./gamma./hs-dFdx
 
