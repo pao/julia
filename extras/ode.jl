@@ -1,3 +1,6 @@
+load("poly.jl")
+load("boundedq.jl")
+
 #ODE23  Solve non-stiff differential equations.
 #
 #   ODE23(F,TSPAN,Y0) with TSPAN = [T0 TFINAL] integrates the system
@@ -27,8 +30,6 @@
 # Initialize variables.
 # Adapted from Cleve Moler's textbook
 # http://www.mathworks.com/moler/ncm/ode23tx.m
-
-load("poly.jl")
 
 function ode23(F::Function, tspan::AbstractVector, y_0::AbstractVector)
 
@@ -418,13 +419,12 @@ function ode_ms{T}(F::Function, tspan::AbstractVector, x0::AbstractVector{T}, or
         end
     end
 
-    # TODO: use a better data structure here (should be an order-element circ buffer)
-    xdot = similar(x)
+    xdot = BoundedQ({}, order)
     for i = 1:length(tspan)-1
         # Need to run the first several steps at reduced order
         steporder = min(i, order)
-        xdot[i,:] = F(tspan[i], x[i,:]')
-        x[i+1,:] = x[i,:] + b[steporder,1:steporder]*xdot[i-(steporder-1):i,:].*h[i]
+        push(xdot, F(tspan[i], x[i,:].').')
+        x[i+1,:] = x[i,:] + b[steporder,1:steporder]*vcat(xdot...).*h[i]
     end
     return (tspan, x)
 end
