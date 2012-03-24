@@ -223,3 +223,6 @@ function sum(r::Range1)
     div((n2*(n2+1) - (n1-1)*n1), 2)
     # TODO: verify that this is actually correct
 end
+
+diff(r::Range1) = ones(length(r)-1)
+diff(r::Range) = diff([r])
