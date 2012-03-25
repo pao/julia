@@ -2,44 +2,73 @@
 
 type BoundedQ{T}
     q::Vector{T}
-    maxSize::Integer
+    maxSize::Int
+    _ptr::Int
+    _len::Int
 end
+function BoundedQ(T::Type, maxSize::Int, _ptr::Int, _len::Int)
+    if !(maxSize >= 0);  error("BoundedQ: maxSize must be non-negative"); end
+    BoundedQ(Array(T, maxSize), maxSize, _ptr, _len)
+end
+BoundedQ(T::Type, maxSize::Integer) = BoundedQ(T, int(maxSize), 1, 0)
+BoundedQ(maxSize::Integer) = BoundedQ(Any, int(maxSize))
 
 # These will make life easier
-length(bq::BoundedQ) = length(bq.q)
-ref(bq::BoundedQ, args...) = ref(bq.q, args...)
-start(bq::BoundedQ) = start(bq.q)
-next(bq::BoundedQ, i) = next(bq.q, i)
-done(bq::BoundedQ, i) = done(bq.q, i)
-map(F, bq::BoundedQ) = map(F, bq.q)
+wrap(bq::BoundedQ, loc::Integer) = mod(loc - 1, bq.maxSize) + 1
+wrap(bq::BoundedQ, locs::AbstractArray) = [wrap(bq, l) | l in locs]
+length(bq::BoundedQ) = bq._len
+
+# Adding elements
 
 function push(bq::BoundedQ, item)
-    if length(bq) + 1 > bq.maxSize
-        shift(bq)
+    bq.q[wrap(bq, bq._ptr + bq._len)] = item
+    if bq._len < bq.maxSize
+        bq._len += 1
+    else
+        bq._ptr = wrap(bq, bq._ptr + 1)
     end
-    push(bq.q, item)
 end
 
 function enqueue(bq::BoundedQ, item)
-    if length(bq) + 1 > bq.maxSize
-        pop(bq)
+    bq.q[wrap(bq, bq._ptr - 1)] = item
+    if length(bq) < bq.maxSize
+        bq._len += 1
     end
-    enqueue(bq.q, item)
+    bq._ptr = wrap(bq, bq._ptr - 1)
 end
 
-# Ranges don't seem to work here for some reason...thought they were AbstractVector?
 function append!(bq::BoundedQ, items::AbstractVector)
-    for i in 1:((length(bq) + length(items)) - bq.maxSize)
-        shift(bq)
+    if length(items) >= bq.maxSize
+        bq.q = items[end-bq.maxSize+1:end]
+        bq._ptr = 1
+        bq._len = bq.maxSize
+    else
+        for item in items
+            push(bq, item)
+        end
     end
-    append!(bq.q, items)
 end
 
-# Removing elements is no problem
-pop(bq::BoundedQ) = pop(bq.q)
-shift(bq::BoundedQ) = shift(bq.q)
-del(bq::BoundedQ, index) = del(bq.q, index)
-# As is the pure append
-append(bq::BoundedQ, items) = append(bq.q, items)
+# Removing elements
 
-# No implementations for insert(), grow()
+function pop(bq::BoundedQ)
+    if length(bq) <= 0; error("Cannot pop from empty queue."); end
+    ret = bq.q[wrap(bq, bq._ptr + bq._len - 1)]
+    bq._len -= 1
+    return ret
+end
+
+function shift(bq::BoundedQ)
+    if length(bq) <= 0; error("Cannot shift from empty queue."); end
+    ret = bq.q[bq._ptr]
+    bq._len -= 1
+    bq._ptr = wrap(bq, bq._ptr + 1)
+    return ret
+end
+
+# Reference
+
+ref(bq::BoundedQ, args...) = ref(bq.q, map((x)->wrap(bq, x + bq._ptr - 1), args)...)
+
+# No implementations yet for start(), next(), done()
+# No implementations for append(), del(), insert(), grow()
