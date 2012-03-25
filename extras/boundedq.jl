@@ -1,16 +1,17 @@
 # Supply (parts of) a dequeue interface with boundedness
 
 type BoundedQ{T}
-    q::Vector{T}
+    q::Array{T}
     maxSize::Int
     _ptr::Int
     _len::Int
 end
-function BoundedQ(T::Type, maxSize::Int, _ptr::Int, _len::Int)
+function BoundedQ(T::Type, maxSize::Int, rowSize::Int, _ptr::Int, _len::Int)
     if !(maxSize >= 0);  error("BoundedQ: maxSize must be non-negative"); end
-    BoundedQ(Array(T, maxSize), maxSize, _ptr, _len)
+    BoundedQ(Array(T, maxSize, rowSize), maxSize, _ptr, _len)
 end
-BoundedQ(T::Type, maxSize::Integer) = BoundedQ(T, int(maxSize), 1, 0)
+BoundedQ(T::Type, maxSize::Integer) = BoundedQ(T, int(maxSize), 1, 1, 0)
+BoundedQ(T::Type, maxSize::Integer, rowSize::Integer) = BoundedQ(T, int(maxSize), int(rowSize), 1, 0)
 BoundedQ(maxSize::Integer) = BoundedQ(Any, int(maxSize))
 
 # These will make life easier
