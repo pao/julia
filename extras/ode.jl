@@ -419,12 +419,12 @@ function ode_ms{T}(F::Function, tspan::AbstractVector, x0::AbstractVector{T}, or
         end
     end
 
-    xdot = BoundedQ({}, order)
+    xdot = BoundedQ(Vector{Float64}, order)
     for i = 1:length(tspan)-1
         # Need to run the first several steps at reduced order
         steporder = min(i, order)
-        push(xdot, F(tspan[i], x[i,:].').')
-        x[i+1,:] = x[i,:] + b[steporder,1:steporder]*vcat(xdot...).*h[i]
+        push(xdot, F(tspan[i], x[i,:].')[:])
+        x[i+1,:] = x[i,:] + b[steporder,1:steporder]*hcat(xdot[:]...).' .* h[i]
     end
     return (tspan, x)
 end
