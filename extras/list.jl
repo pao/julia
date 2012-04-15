@@ -1,9 +1,12 @@
 abstract ListNode{T}
 
 type ListItem{T} <: ListNode{T}
+    data::T
     prev::ListNode{T}
     next::ListNode{T}
-    data::T
+
+    ListItem(a, p, n) = new(a, p, n)
+    ListItem(a) = new(a)
 end
 type List{T} <: ListNode{T}
     prev::ListNode{T}
@@ -27,8 +30,8 @@ show(it::ListItem) = show(it.data)
 ## collections ##
 
 isempty(lst::List) = isequal(lst, lst.next)
-length(lst::List) = reduce((l, it) -> l+1, 0, lst)
-numel(lst::List) = length(lst)
+length(lst::List) = numel(lst)
+numel(lst::List) = reduce((l, it) -> l+1, 0, lst)
 
 ## iterable ##
 
@@ -45,14 +48,13 @@ done(lst::List, l::ListNode) = isa(l, List)
 
 ## indexable ##
 
-function itemat{T,I<:Integer}(lst::List{T}, idxs::AbstractVector{I})
+function itemsat{T,I<:Integer}(lst::List{T}, idxs::AbstractVector{I})
     if isempty(lst)
         error("Attempted to retrieve items from empty list.")
     end
-    idxs = sort(idxs) # make sure we can do this in one traversal
     ls = Array(ListNode{T}, length(idxs))
     l = lst
-    for i in 1:idxs[end]
+    for i in 1:max(idxs)
         l = l.next
         if isa(l, List)
             error("Access past end of list.")
@@ -61,22 +63,24 @@ function itemat{T,I<:Integer}(lst::List{T}, idxs::AbstractVector{I})
     end
     ls
 end
-itemat{T}(lst::List{T}, idx::Integer) = itemat(lst, [idx])[1]
+itemsat{T}(lst::List{T}, idx::Integer) = itemsat(lst, [idx])[1]
+itemsat{T,I<:Integer}(lst::List{T}, idxs::Ranges{I}) = itemsat(lst, [idxs])
 
-ref(lst::List, i::Integer) = itemat(lst, i)[1].data
-ref{I<:Integer}(lst::List, idxs::AbstractVector{I}) = map((l) -> l.data, itemat(lst, idxs))
+ref(lst::List, i::Integer) = itemsat(lst, i).data
+ref{I<:Integer}(lst::List, idxs::AbstractVector{I}) = map((l) -> l.data, itemsat(lst, idxs))
+ref{I<:Integer}(lst::List, idxs::Ranges{I}) = map((l) -> l.data, itemsat(lst, [idxs]))
 
 function assign(lst::List, item, idxs::Integer...)
-    for elem in itemat(lst, idxs)
+    for elem in itemsat(lst, idxs)
         elem.data = item
     end
 end
-assign(lst::List, item, idx::Integer) = itemat(lst, idx).data = item
+assign(lst::List, item, idx::Integer) = itemsat(lst, idx).data = item
 
 ## dequeue ##
 
 function push{T}(lst::List{T}, item::T)
-    node = ListItem(lst.prev, lst, item)
+    node = ListItem{T}(item, lst.prev, lst)
     lst.prev.next = node
     lst.prev = node
 end
@@ -92,7 +96,7 @@ function pop(lst::List)
 end
 
 function enqueue{T}(lst::List{T}, item::T)
-    nxt = ListItem(lst, lst.next, item)
+    nxt = ListItem{T}(item, lst, lst.next)
     lst.next.prev = nxt
     lst.next = nxt
 end
@@ -108,22 +112,19 @@ function shift(lst::List)
 end
 
 function insert{T}(lst::List{T}, idx::Integer, item::T)
-    after = !isempty(lst) ? itemat(lst, idx) : lst
-    before = after.prev
-    ins = ListItem(before, after, item)
-    before.next = ins
-    after.prev = ins
+    if idx == 1 #skip the lookup
+        enqueue(lst, item)
+    else
+        insert(lst, idx, ListItem{T}(item))
+    end
 end
 
 function del(lst::List, idx::Integer)
     if isempty(lst)
         error("Attempted to delete from empty list.")
     end
-    rm = itemat(lst, idx)
-    before = rm.prev
-    after = rm.next
-    before.next = after
-    after.prev = before
+    rm = itemsat(lst, idx)
+    remove(rm)
 end
 
 grow(lst::List, n) = nothing # doesn't make sense for this structure
@@ -138,4 +139,34 @@ function append!{T}(lst::List{T}, items)
     for item in items
         push(lst, item)
     end
+end
+
+## dangerous direct operations ##
+
+function remove{T}(lst::List{T}, item::ListItem{T})
+    before = item.prev
+    after = item.next
+    before.next = after
+    after.next = before
+end
+
+function enqueue{T}(lst::List{T}, item::ListItem{T})
+    item.prev = lst
+    item.next = lst.next
+    lst.next.prev = item
+    lst.next = item
+end
+
+function insert{T}(lst::List{T}, idx::Integer, item::ListItem{T})
+    after = itemsat(lst, idx)
+    before = after.prev
+    item.prev = before
+    item.next = after
+    before.next = item
+    after.prev = item
+end
+
+function move_to_head{T}(lst::List{T}, item::ListItem{T})
+    remove(lst, item)
+    enqueue(lst, item)
 end
