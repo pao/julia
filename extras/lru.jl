@@ -55,6 +55,13 @@ end
 function assign{K,V}(lru::BoundedLLRU{K,V}, v::V, key::K)
     invoke(assign, (LLRU{K,V}, V, K), lru, v, key)
     nrm = length(lru) - lru.maxsize
+    if nrm > 1
+        println()
+        println(length(lru))
+        println(lru.maxsize)
+        println(nrm)
+        error()
+    end
     for i in 1:nrm
         pop(lru.lst)
     end

@@ -15,7 +15,6 @@ end
 indent() = print("        ")
 get_str(i) = ascii(map(x->x>>1, reinterpret(Uint8, [int32(2*i)])))
 
-srand(1234567)
 
 nmax = int(logspace(1,4,4))
 
@@ -23,6 +22,7 @@ println(ARGS[1])
 for lru in (:TestLRU, :TestBLRUs, :TestBLRUm, :TestBLRUl)
     @eval begin
         for n in nmax
+            srand(1234567)
             del_all($lru)
             gc()
             printf("  %s\n", $lru)
@@ -42,6 +42,21 @@ for lru in (:TestLRU, :TestBLRUs, :TestBLRUm, :TestBLRUl)
                     str = get_str(randi(n))
                     if has($lru, str) # the bounded LRUs can have cache misses
                         blah = ($lru)[str]
+                    end
+                end
+            end
+
+            println("    Random mixed workload:")
+            indent()
+            @time begin
+                for i in 1:n
+                    str = get_str(i)
+                    if randi(2) == 1
+                        ($lru)[str] = str
+                    else
+                        if has($lru, str)
+                            blah = ($lru)[str]
+                        end
                     end
                 end
             end
