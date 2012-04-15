@@ -14,11 +14,11 @@ end
 # Python has a default cache size defined as a global; should we?
 const __MAXCACHE = 1024 # I totally just made that up
 type BoundedLRU{K,V} <: LRU{K,V}
-    ht::WeakKeyHashTable # can't tighten the type here
+    ht::WeakValueHashTable # can't tighten the type here
     lst::List{V}
     maxsize::Integer
 
-    BoundedLRU(m) = new(WeakKeyHashTable(), List{V}(), m)
+    BoundedLRU(m) = new(WeakValueHashTable(), List{V}(), m)
     BoundedLRU() = BoundedLRU(__MAXCACHE)
 end
 
