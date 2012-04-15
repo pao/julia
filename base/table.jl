@@ -362,7 +362,9 @@ function add_weak_value(t::HashTable, k, v)
     return t
 end
 
-type WeakKeyHashTable{K,V} <: Associative
+abstract WeakHashTable{K,V} <: Associative
+
+type WeakKeyHashTable{K,V} <: WeakHashTable{K,V}
     ht::HashTable{K,V}
 
     WeakKeyHashTable() = new(HashTable{K,V}())
@@ -371,21 +373,38 @@ WeakKeyHashTable() = WeakKeyHashTable{Any,Any}()
 
 assign(wkh::WeakKeyHashTable, v, key) = add_weak_key(wkh.ht, key, v)
 
-function key(wkh::WeakKeyHashTable, kk, deflt)
-    k = key(wkh.ht, kk, _jl_secret_table_token)
+type WeakValueHashTable{K,V} <: WeakHashTable{K,V}
+    ht::HashTable{K,V}
+
+    WeakValueHashTable() = new(HashTable{K,V}())
+end
+WeakValueHashTable() = WeakValueHashTable{Any,Any}()
+
+assign(wvh::WeakValueHashTable, v, key) = add_weak_value(wvh.ht, key, v)
+function get(wvh::WeakValueHashTable, key, deflt)
+    val = get(wvh.ht, key, deflt)
+    if isa(val, WeakRef)
+        val = val.value
+    end
+    val
+end
+ref(wvh::WeakValueHashTable, key) = ref(wvh.ht, key).value
+
+function key(wh::WeakHashTable, kk, deflt)
+    k = key(wh.ht, kk, _jl_secret_table_token)
     if is(k, _jl_secret_table_token)
         return deflt
     end
     return k.value
 end
 
-get(wkh::WeakKeyHashTable, key, deflt) = get(wkh.ht, key, deflt)
-del(wkh::WeakKeyHashTable, key) = del(wkh.ht, key)
-del_all(wkh::WeakKeyHashTable)  = (del_all(wkh.ht); wkh)
-has(wkh::WeakKeyHashTable, key) = has(wkh.ht, key)
-ref(wkh::WeakKeyHashTable, key) = ref(wkh.ht, key)
-isempty(wkh::WeakKeyHashTable) = isempty(wkh.ht)
+get(wh::WeakHashTable, key, deflt) = get(wh.ht, key, deflt)
+del(wh::WeakHashTable, key) = del(wh.ht, key)
+del_all(wh::WeakHashTable)  = (del_all(wh.ht); wh)
+has(wh::WeakHashTable, key) = has(wh.ht, key)
+ref(wh::WeakHashTable, key) = ref(wh.ht, key)
+isempty(wh::WeakHashTable) = isempty(wh.ht)
 
-start(t::WeakKeyHashTable) = start(t.ht)
-done(t::WeakKeyHashTable, i) = done(t.ht, i)
-next(t::WeakKeyHashTable, i) = next(t.ht, i)
+start(t::WeakHashTable) = start(t.ht)
+done(t::WeakHashTable, i) = done(t.ht, i)
+next(t::WeakHashTable, i) = next(t.ht, i)
