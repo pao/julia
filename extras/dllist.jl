@@ -120,6 +120,11 @@ function del(lst::DLList, idx::Integer)
     remove(rm)
 end
 
+function del_all(lst::DLList)
+    lst.next = lst
+    lst.prev = lst
+end
+
 grow(lst::DLList, n) = nothing # doesn't make sense for this structure
 
 function append{T}(lst::DLList{T}, items)
