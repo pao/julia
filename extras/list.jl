@@ -35,13 +35,6 @@ numel(lst::List) = reduce((l, it) -> l+1, 0, lst)
 
 ## iterable ##
 
-function reduce(op::Function, v0, lst::List)
-    v = v0
-    for dat in lst
-        v = op(v, dat)
-    end
-    v
-end
 start(lst::List) = lst.next
 next(lst::List, l::ListNode) = (l.data, l.next)
 done(lst::List, l::ListNode) = isa(l, List)
