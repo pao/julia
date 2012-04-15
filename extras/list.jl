@@ -140,7 +140,7 @@ function remove{T}(lst::List{T}, item::ListItem{T})
     before = item.prev
     after = item.next
     before.next = after
-    after.next = before
+    after.prev = before
 end
 
 function enqueue{T}(lst::List{T}, item::ListItem{T})
