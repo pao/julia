@@ -1,10 +1,10 @@
-load("list.jl")
+load("dllist.jl")
 
 abstract LRU{K,V} <: Associative
 
 type UnboundedLRU{K,V} <: LRU{K,V}
     ht::HashTable{K,ListItem{V}}
-    lst::List{V}
+    lst::DLList{V}
 
     UnboundedLRU() = new(HashTable{K, ListItem{V}}(), List{V}())
 end
@@ -15,7 +15,7 @@ end
 const __MAXCACHE = 1024 # I totally just made that up
 type BoundedLRU{K,V} <: LRU{K,V}
     ht::WeakValueHashTable # can't tighten the type here
-    lst::List{V}
+    lst::DLList{V}
     maxsize::Integer
 
     BoundedLRU(m) = new(WeakValueHashTable(), List{V}(), m)

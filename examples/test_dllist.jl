@@ -1,6 +1,6 @@
-load("list.jl")
+load("dllist.jl")
 
-head = List{Int64}()
+head = DLList{Int64}()
 @assert eltype(head) == Int64
 
 append!(head, 1:3)
@@ -30,7 +30,7 @@ insert(head, 3, 7)
 insert(head, 1, 8)
 @assert head[:] == [8; 4; 7; 6]
 
-head = List{Int64}()
+head = DLList{Int64}()
 println("(4) tests should each print a line")
 try
     pop(head)
