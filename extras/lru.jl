@@ -32,9 +32,26 @@ numel(lru::LRU) = numel(lru.lst)
 length(lru::LRU) = length(lru.lst)
 has{K}(lru::LRU{K}, key::K) = has(lru.ht, key)
 
+# Deal with weak value refs
+function has{K}(lru::BoundedLLRU{K}, key::K)
+    if has(lru.ht, key)
+        item = lru.ht[key]
+        if isa(item, Nothing)
+            false
+        else
+            true
+        end
+    else
+        false
+    end
+end
+
 ## indexable ##
 
 function ref{K}(lru::LLRU{K}, key::K)
+    if !has(lru.ht, key)
+        throw(KeyError(key))
+    end
     item = lru.ht[key]
     move_to_head(lru.lst, item)
     item.data
@@ -46,8 +63,8 @@ function assign{K,V}(lru::LLRU{K,V}, v::V, key::K)
         move_to_head(lru.lst, item)
         item.data = v
     else
-        enqueue(lru.lst, v)
-        lru.ht[key] = itemsat(lru.lst, 1)
+        item = enqueue(lru.lst, v)
+        lru.ht[key] = item
     end
 end
 
@@ -55,13 +72,6 @@ end
 function assign{K,V}(lru::BoundedLLRU{K,V}, v::V, key::K)
     invoke(assign, (LLRU{K,V}, V, K), lru, v, key)
     nrm = length(lru) - lru.maxsize
-    if nrm > 1
-        println()
-        println(length(lru))
-        println(lru.maxsize)
-        println(nrm)
-        error()
-    end
     for i in 1:nrm
         pop(lru.lst)
     end
