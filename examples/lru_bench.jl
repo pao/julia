@@ -16,17 +16,22 @@ indent() = print("        ")
 get_str(i) = ascii(map(x->x>>1, reinterpret(Uint8, [int32(2*i)])))
 
 
-nmax = int(logspace(1,4,4))
+nmax = int(logspace(2, 4, 3))
 
 println(ARGS[1])
-for lru in (:TestLRU, :TestBLRUs, :TestBLRUm, :TestBLRUl)
+for lru in (
+            :TestLRU,
+            :TestBLRUs,
+            :TestBLRUm,
+            :TestBLRUl,
+            )
     @eval begin
         for n in nmax
             srand(1234567)
             del_all($lru)
             gc()
-            printf("  %s\n", $lru)
-            println("    Assignment, $n items:")
+            printf("  %s, %d items\n", $lru, n/2)
+            println("    Assignment:")
             indent()
             @time begin
                 for i in 1:n
