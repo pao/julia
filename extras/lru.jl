@@ -58,20 +58,21 @@ function ref{K}(lru::LLRU{K}, key::K)
 end
 
 function assign{K,V}(lru::LLRU{K,V}, v::V, key::K)
-    local item
+    local item = nothing
     try
         item = lru.ht[key]
     catch e
-        if isa(e, KeyError)
-            item = enqueue(lru.lst, v)
-            lru.ht[key] = item
-            return
-        else
+        if !isa(e, KeyError)
             throw(e)
         end
     end
-    move_to_head(lru.lst, item)
-    item.data = v
+    if isa(item, Nothing)
+        item = enqueue(lru.lst, v)
+        lru.ht[key] = item
+    else
+        move_to_head(lru.lst, item)
+        item.data = v
+    end
 end
 
 # Eviction
