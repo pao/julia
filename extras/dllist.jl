@@ -8,6 +8,9 @@ type DLListItem{T} <: DLListNode{T}
     DLListItem(a, p, n) = new(a, p, n)
     DLListItem(a) = new(a)
 end
+
+recycle(it::DLListItem) = (it.next = it.prev = it)
+
 type DLList{T} <: DLListNode{T}
     prev::DLListNode{T}
     next::DLListNode{T}
@@ -74,41 +77,44 @@ assign(lst::DLList, item, idx::Integer) = itemsat(lst, idx).data = item
 
 function push{T}(lst::DLList{T}, item::T)
     node = DLListItem{T}(item, lst.prev, lst)
-    startl = length(lst)
+    #startl = length(lst)
     lst.prev.next = node
     lst.prev = node
-    @assert length(lst) - startl == 1
+    #@assert length(lst) - startl == 1
 end
 
 function pop(lst::DLList)
     if isempty(lst)
         error("Attempted to pop from empty list.")
     end
-    startl = length(lst)
+    #startl = length(lst)
     pitem = lst.prev
     before = pitem.prev
     lst.prev = before
     before.next = lst
-    @assert startl - length(lst) == 1
+    recycle(pitem)
+    #@assert startl - length(lst) == 1
     pitem.data
 end
 
 function enqueue{T}(lst::DLList{T}, item::T)
     nxt = DLListItem{T}(item, lst, lst.next)
-    startl = length(lst)
+    #startl = length(lst)
     lst.next.prev = nxt
     lst.next = nxt
-    @assert length(lst) - startl == 1
+    #@assert true#length(lst) - startl == 1
 end
 
 function shift(lst::DLList)
     if isempty(lst)
         error("Attempted to shift from empty list.")
     end
-    ret = lst.next.data
+    sitem = lst.next
+    ret = sitem.data
     lst.next = lst.next.next
     lst.next.prev = lst
-    ret
+    recycle(sitem)
+    sitem.data
 end
 
 function insert{T}(lst::DLList{T}, idx::Integer, item::T)
@@ -123,18 +129,17 @@ function del(lst::DLList, idx::Integer)
     if isempty(lst)
         error("Attempted to delete from empty list.")
     end
-    startl = length(lst)
+    #startl = length(lst)
     rm = itemsat(lst, idx)
     remove(rm)
-    @assert startl - length(lst) == 1
-
+    #@assert startl - length(lst) == 1
 end
 
 function del_all(lst::DLList)
     lst.next.prev = lst.next
     lst.prev.next = lst.prev
     lst.next = lst.prev = lst
-    @assert length(lst) == 0
+    #@assert length(lst) == 0
 end
 
 grow(lst::DLList, n) = nothing # doesn't make sense for this structure
@@ -154,21 +159,22 @@ end
 ## dangerous direct operations ##
 
 function remove{T}(lst::DLList{T}, item::DLListItem{T})
-    startl = length(lst)
+    #startl = length(lst)
     before = item.prev
     after = item.next
     before.next = after
     after.prev = before
-    @assert startl - length(lst) == 1
+    recycle(item)
+    #@assert startl - length(lst) == 1
 end
 
 function enqueue{T}(lst::DLList{T}, item::DLListItem{T})
-    startl = length(lst)
+    #startl = length(lst)
     item.prev = lst
     item.next = lst.next
     lst.next.prev = item
     lst.next = item
-    @assert length(lst) - startl == 1
+    #@assert length(lst) - startl == 1
     item
 end
 
@@ -179,13 +185,12 @@ function insert{T}(lst::DLList{T}, idx::Integer, item::DLListItem{T})
     item.next = after
     before.next = item
     after.prev = item
-    @assert length(lst) - startl == 1
     item
 end
 
 function move_to_head{T}(lst::DLList{T}, item::DLListItem{T})
-    startl = length(lst)
+    #startl = length(lst)
     remove(lst, item)
     enqueue(lst, item)
-    @assert startl - length(lst) == 0
+    #@assert startl - length(lst) == 0
 end
