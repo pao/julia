@@ -388,7 +388,14 @@ function get(wvh::WeakValueHashTable, key, deflt)
     end
     val
 end
-ref(wvh::WeakValueHashTable, key) = ref(wvh.ht, key).value
+
+function ref(wvh::WeakValueHashTable, key)
+    v = ref(wvh.ht, key).value
+    if isa(v, Nothing)
+        throw(KeyError(key))
+    end
+    v
+end
 
 function key(wh::WeakHashTable, kk, deflt)
     k = key(wh.ht, kk, _jl_secret_table_token)
