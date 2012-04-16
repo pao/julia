@@ -34,16 +34,16 @@ has{K}(lru::LRU{K}, key::K) = has(lru.ht, key)
 
 # Deal with weak value refs
 function has{K}(lru::BoundedLLRU{K}, key::K)
-    if has(lru.ht, key)
+    try
         item = lru.ht[key]
-        if isa(item, Nothing)
-            false
+    catch e
+        if isa(e, KeyError)
+            return false
         else
-            true
+            throw(e)
         end
-    else
-        false
     end
+    true
 end
 
 ## indexable ##
@@ -58,21 +58,20 @@ function ref{K}(lru::LLRU{K}, key::K)
 end
 
 function assign{K,V}(lru::LLRU{K,V}, v::V, key::K)
-    local item = nothing
+    local item
     try
         item = lru.ht[key]
     catch e
-        if !isa(e, KeyError)
+        if isa(e, KeyError)
+            item = enqueue(lru.lst, v)
+            lru.ht[key] = item
+            return
+        else
             throw(e)
         end
     end
-    if isa(item, Nothing)
-        item = enqueue(lru.lst, v)
-        lru.ht[key] = item
-    else
-        move_to_head(lru.lst, item)
-        item.data = v
-    end
+    move_to_head(lru.lst, item)
+    item.data = v
 end
 
 # Eviction
