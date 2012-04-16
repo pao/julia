@@ -12,10 +12,11 @@ end
 recycle(it::DLListItem) = (it.next = it.prev = it)
 
 type DLList{T} <: DLListNode{T}
+    length::Int
     prev::DLListNode{T}
     next::DLListNode{T}
 
-    DLList() = (l = new(); l.next = l; l.prev = l)
+    DLList() = (l = new(0); l.next = l; l.prev = l)
 end
 
 eltype{T}(::Type{DLList{T}}) = T
@@ -30,11 +31,13 @@ function show(lst::DLList)
 end
 show(it::DLListItem) = show(it.data)
 
+length_assert(lst::DLList) = reduce((l, it) -> l+1, 0, lst)
+
 ## collections ##
 
 isempty(lst::DLList) = isequal(lst, lst.next)
-length(lst::DLList) = numel(lst)
-numel(lst::DLList) = reduce((l, it) -> l+1, 0, lst)
+length(lst::DLList) = lst.length
+numel(lst::DLList) = lst.length
 
 ## iterable ##
 
@@ -77,6 +80,7 @@ assign(lst::DLList, item, idx::Integer) = itemsat(lst, idx).data = item
 
 function push{T}(lst::DLList{T}, item::T)
     node = DLListItem{T}(item, lst.prev, lst)
+    lst.length += 1
     #startl = length(lst)
     lst.prev.next = node
     lst.prev = node
@@ -87,6 +91,7 @@ function pop(lst::DLList)
     if isempty(lst)
         error("Attempted to pop from empty list.")
     end
+    lst.length -= 1
     #startl = length(lst)
     pitem = lst.prev
     before = pitem.prev
@@ -99,6 +104,7 @@ end
 
 function enqueue{T}(lst::DLList{T}, item::T)
     nxt = DLListItem{T}(item, lst, lst.next)
+    lst.length += 1
     #startl = length(lst)
     lst.next.prev = nxt
     lst.next = nxt
@@ -109,6 +115,7 @@ function shift(lst::DLList)
     if isempty(lst)
         error("Attempted to shift from empty list.")
     end
+    lst.length -= 1
     sitem = lst.next
     ret = sitem.data
     lst.next = lst.next.next
@@ -136,6 +143,7 @@ function del(lst::DLList, idx::Integer)
 end
 
 function del_all(lst::DLList)
+    lst.length = 0
     lst.next.prev = lst.next
     lst.prev.next = lst.prev
     lst.next = lst.prev = lst
@@ -160,6 +168,7 @@ end
 
 function remove{T}(lst::DLList{T}, item::DLListItem{T})
     #startl = length(lst)
+    lst.length -= 1
     before = item.prev
     after = item.next
     before.next = after
@@ -170,6 +179,7 @@ end
 
 function enqueue{T}(lst::DLList{T}, item::DLListItem{T})
     #startl = length(lst)
+    lst.length += 1
     item.prev = lst
     item.next = lst.next
     lst.next.prev = item
@@ -179,6 +189,7 @@ function enqueue{T}(lst::DLList{T}, item::DLListItem{T})
 end
 
 function insert{T}(lst::DLList{T}, idx::Integer, item::DLListItem{T})
+    lst.length += 1
     after = itemsat(lst, idx)
     before = after.prev
     item.prev = before
