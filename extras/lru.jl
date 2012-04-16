@@ -64,7 +64,8 @@ function assign{K,V}(lru::LLRU{K,V}, v::V, key::K)
     catch e
         if isa(e, KeyError)
             item = enqueue(lru.lst, v)
-            return lru.ht[key] = item
+            lru.ht[key] = item
+            return
         else
             throw(e)
         end
