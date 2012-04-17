@@ -65,7 +65,7 @@ function assign{K,V}(lru::LLRU{K,V}, v::V, key::K)
         if isa(e, KeyError)
             item = enqueue(lru.lst, v)
             lru.ht[key] = item
-            return
+            return v
         else
             throw(e)
         end
@@ -129,9 +129,18 @@ show(lru::BoundedVLRU) = print("BoundedVLRU($(lru.maxsize))")
 
 ## indexable ##
 
+function locate(lst, x)
+    for i = 1:length(lst)
+        if lst[i] == x
+            return i
+        end
+    end
+    error("Item not found.")
+end
+
 function ref{K}(lru::VLRU{K}, key::K)
     item = lru.ht[key]
-    idx = find(map(x-> x==item, lru.lst))[1]
+    idx = locate(lru.lst, item)
     del(lru.lst, idx)
     enqueue(lru.lst, item)
     item.b
@@ -140,7 +149,7 @@ end
 function assign{K,V}(lru::VLRU{K,V}, v::V, key::K)
     if has(lru, key)
         item = lru.ht[key]
-        idx = find(map(x-> x==item, lru.lst))[1]
+        idx = locate(lru.lst, item)
         item.b = v
         del(lru.lst, idx)
         enqueue(lru.lst, item)
@@ -165,7 +174,7 @@ end
 
 function del{K}(lru::VLRU{K}, key::K)
     item = lru.ht[key]
-    idx = find(map(x-> x==item, lru.lst))[1]
+    idx = locate(lru.lst, item)
     del(lru.ht, key)
     del(lru.lst, idx)
 end
