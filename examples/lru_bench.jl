@@ -16,56 +16,54 @@ indent() = print("        ")
 get_str(i) = ascii(map(x->x>>1, reinterpret(Uint8, [int32(2*i)])))
 
 
-nmax = int(logspace(2, 4, 3))
+nmax = int(logspace(6, 6, 1))
 
 println(ARGS[1])
 for lru in (
-            :TestLRU,
-            :TestBLRUs,
-            :TestBLRUm,
-            :TestBLRUl,
+            #TestLRU,
+            #TestBLRUs,
+            TestBLRUm,
+            TestBLRUl,
             )
-    @eval begin
-        for n in nmax
-            srand(1234567)
-            del_all($lru)
-            gc()
-            printf("  %s, %d items\n", $lru, n/2)
-            println("    Assignment:")
-            indent()
-            @time begin
-                for i in 1:n
-                    str = get_str(i)
-                    ($lru)[str] = str
+    for n in nmax
+        srand(1234567)
+        del_all(lru)
+        gc()
+        printf("  %s, %d items\n", lru, n/2)
+        println("    Assignment:")
+        indent()
+        @time begin
+            for i in 1:n
+                str = get_str(i)
+                lru[str] = str
+            end
+        end
+
+        println("    Lookup, random access:")
+        indent()
+        @time begin
+            for i in 1:n
+                str = get_str(randi(n))
+                if has(lru, str) # the bounded LRUs can have cache misses
+                    blah = lru[str]
                 end
             end
+        end
 
-            println("    Lookup, random access:")
-            indent()
-            @time begin
-                for i in 1:n
-                    str = get_str(randi(n))
-                    if has($lru, str) # the bounded LRUs can have cache misses
-                        blah = ($lru)[str]
-                    end
-                end
-            end
-
-            println("    Random mixed workload:")
-            indent()
-            @time begin
-                for i in 1:n
-                    str = get_str(i)
-                    if randi(2) == 1
-                        ($lru)[str] = str
-                    else
-                        if has($lru, str)
-                            blah = ($lru)[str]
-                        end
+        println("    Random mixed workload:")
+        indent()
+        @time begin
+            for i in 1:n
+                str = get_str(i)
+                if randi(2) == 1
+                    lru[str] = str
+                else
+                    if has(lru, str)
+                        blah = lru[str]
                     end
                 end
             end
         end
-        del_all($lru)
     end
+    del_all(lru)
 end

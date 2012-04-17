@@ -31,7 +31,8 @@ function show(lst::DLList)
 end
 show(it::DLListItem) = show(it.data)
 
-length_assert(lst::DLList) = reduce((l, it) -> l+1, 0, lst)
+# Check the length of the list is as advertised
+length_assert(lst::DLList) = lst.length == reduce((l, it) -> l+1, 0, lst)
 
 ## collections ##
 
