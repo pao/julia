@@ -16,12 +16,12 @@ indent() = print("        ")
 get_str(i) = ascii(map(x->x>>1, reinterpret(Uint8, [int32(2*i)])))
 
 
-nmax = int(logspace(6, 6, 1))
+nmax = int(logspace(2, 5, 4))
 
 println(ARGS[1])
 for lru in (
-            #TestLRU,
-            #TestBLRUs,
+            TestLRU,
+            TestBLRUs,
             TestBLRUm,
             TestBLRUl,
             )
