@@ -36,7 +36,7 @@ length_assert(lst::DLList) = lst.length == reduce((l, it) -> l+1, 0, lst)
 
 ## collections ##
 
-isempty(lst::DLList) = isequal(lst, lst.next)
+isempty(lst::DLList) = lst.length == 0
 length(lst::DLList) = lst.length
 numel(lst::DLList) = lst.length
 
