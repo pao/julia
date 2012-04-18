@@ -130,7 +130,7 @@ show(lru::BoundedVLRU) = print("BoundedVLRU($(lru.maxsize))")
 ## indexable ##
 
 function locate(lst, x)
-    for i = 1:length(lst)
+    for i = length(lst):-1:1
         if lst[i] == x
             return i
         end
@@ -142,7 +142,7 @@ function ref{K}(lru::VLRU{K}, key::K)
     item = lru.ht[key]
     idx = locate(lru.lst, item)
     del(lru.lst, idx)
-    enqueue(lru.lst, item)
+    push(lru.lst, item)
     item.b
 end
 
@@ -152,12 +152,11 @@ function assign{K,V}(lru::VLRU{K,V}, v::V, key::K)
         idx = locate(lru.lst, item)
         item.b = v
         del(lru.lst, idx)
-        enqueue(lru.lst, item)
     else
         item = Pair(key, v)
         lru.ht[key] = item
-        enqueue(lru.lst, item)
     end
+    push(lru.lst, item)
 end
 
 # Eviction
@@ -165,7 +164,7 @@ function assign{K,V}(lru::BoundedVLRU{K,V}, v::V, key::K)
     invoke(assign, (VLRU{K,V}, V, K), lru, v, key)
     nrm = length(lru) - lru.maxsize
     for i in 1:nrm
-        rm = pop(lru.lst)
+        rm = shift(lru.lst)
         del(lru.ht, rm.a)
     end
 end
