@@ -337,24 +337,24 @@ pack(composite) = @withIOString iostr pack(iostr, composite)
 unpack(str::String, s::Struct) = unpack(IOString(str), s)
 unpack(str::String, ctyp) = unpack(IOString(str), ctyp)
 
-
 # An alignment strategy is a function Type -> Integer
 # TODO: equivalent to __attribute__ (( align(n) ))
 
-# Build cases where specific alignments are overridden
+# Build cases where specific alignments are overridden using a Dict
 # assume alignment for T is nextpow2(sizeof(::Type{T})) unless specified
 alignment_for(typ) = nextpow2(sizeof(typ))
-function alignment_for(typ, ht)
-    if has(ht, typ)
-        ht[typ]
+alignment_for(::Type{Nothing}) = 1 # because it's really padding
+function alignment_for(typ, ttable, comp)
+    if has(ttable, typ)
+        ttable[typ]
     else
         alignment_for(typ)
     end
 end
 
 # Build a strategy for a specific alignment ("#pragma pack(n)")
-alignment_specific(n::Integer)
-    (typ) -> sizeof(typ) < n ? alignment_for(typ) : n
+function align_specific(n::Integer)
+    (typ) -> alignment_for(typ) < n ? alignment_for(typ) : n
 end
 
 # Fully packed ("#pragma pack(1)" or "__attribute__ (( __packed__ ))")
@@ -363,8 +363,21 @@ align_packed(typ) = 1
 align_default(typ) = alignment_for(typ)
 
 # Specific architectures
-align_x86_pc_linux_gnu(typ) = alignment_for(typ, {
-                                                  Int64 => 4,
-                                                  Uint64 => 4,
-                                                  Float64 => 4,
-                                                  })
+align_x86_pc_linux_gnu(typ) = alignment_for(typ,
+                                            {
+                                             Int64 => 4,
+                                             Uint64 => 4,
+                                             Float64 => 4,
+                                             },
+                                            max)
+
+alignments(composite, strategy) = alignments(Struct(composite), strategy)
+alignments(s::Struct, strategy) = [strategy(tt[1]) | tt in s.types]
+
+function show_alignments(s::Struct, strategy)
+    aligns = alignments(s, strategy)
+    for ((typ,), align) in zip(s.types, aligns)
+        println("$typ: $align")
+    end
+    println("Struct alignment: ")
+end
