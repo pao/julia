@@ -6,7 +6,7 @@ bswap(c::Char) = identity(c) # white lie which won't work for multibyte characte
 # Represents a packed composite type
 type Struct
     canonical::String
-    endianness::String
+    endianness::Type
     types
     pack::Function
     unpack::Function
@@ -32,7 +32,7 @@ function Struct{T}(::Type{T}, endianness)
     struct_utils(T)
     STRUCTS[s] = Struct(s, endianness, types, pack, unpack, T, size)
 end
-Struct{T}(::Type{T}) = Struct(T, "native")
+Struct{T}(::Type{T}) = Struct(T, NativeEndian)
 
 canonicalize(s::String) = replace(s, r"\s|#.*$"m, "")
 
@@ -92,17 +92,17 @@ function struct_parse(s::String)
     t = {}
     i = 2
     endianness = if s[1] == '<'
-        "little"
+        LittleEndian
     elseif s[1] == '>' || s[1] == '!'
-        "big"
+        BigEndian
     elseif s[1] == '='
-        "native"
+        NativeEndian
     elseif s[1] == '@'
         println("Warning: struct does not support fully native structures.")
-        "native"
+        NativeEndian
     else
         i = 1 # no byte order command
-        "native"
+        NativeEndian
     end
     
     tmap = {'x' => Nothing,
@@ -263,17 +263,15 @@ function struct_pack(convert, types, struct_type)
     eval(packdef)
 end
 
-function endianness_converters(endianness::String)
-    if endianness == "big"
-        hton, ntoh
-    elseif endianness == "little"
-        htol, ltoh
-    elseif endianness == "native"
-        identity, identity
-    else
-        error("Endianness must be \"big\", \"little\", or \"native\"; got \"$endianness\".")
-    end
-end
+abstract Endianness
+type BigEndian <: Endianness; end
+type LittleEndian <: Endianness; end
+type NativeEndian <: Endianness; end
+
+endianness_converters{T<:Endianness}(::Type{T}) = error("endianness type $T not recognized")
+endianness_converters(::Type{BigEndian}) = hton, ntoh
+endianness_converters(::Type{LittleEndian}) = htol, ltoh
+endianness_converters(::Type{NativeEndian}) = identity, identity
 
 function struct_utils(struct_type)
     @eval ref(struct::($struct_type), i::Integer) = struct.(($struct_type).names[i])
