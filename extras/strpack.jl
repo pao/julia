@@ -36,6 +36,9 @@ Struct{T}(::Type{T}) = Struct(T, NativeEndian)
 
 canonicalize(s::String) = replace(s, r"\s|#.*$"m, "")
 
+# An byte of padding
+bitstype 8 PadByte
+
 # TODO Handle strings and arrays
 function isbitsequivalent{T}(::Type{T})
     if isa(T, BitsKind)
@@ -66,8 +69,6 @@ function calcsize(types)
         typ = elemtype <: Array ? eltype(elemtype) : elemtype
         size += if isa(typ, BitsKind)
             prod(dims)*sizeof(typ)
-        elseif typ == Nothing # isa(Nothing, CompositeKind) == true
-            prod(dims)
         elseif isa(typ, CompositeKind)
             prod(dims)*sizeof(Struct(typ))
         else
@@ -105,7 +106,7 @@ function struct_parse(s::String)
         NativeEndian
     end
     
-    tmap = {'x' => Nothing,
+    tmap = {'x' => PadByte,
             'c' => Char,
             'b' => Int8,
             'B' => Uint8,
@@ -168,9 +169,6 @@ end
 function gen_typelist(types::Array)
     xprs = {}
     for (typ, dims, name) in types
-        if typ == Nothing
-            continue
-        end
         fn = !isa(name, Nothing) ? symbol(name) : gensym("field$(length(xprs)+1)")
         xpr = if dims == 1
             :(($fn)::($typ))
@@ -203,7 +201,7 @@ function gen_readers(convert::Function, types::Array, stream::Symbol)
     xprs = similar(types)
     for i in 1:length(types)
         typ, dims = types[i]
-        xprs[i] = if typ == Nothing
+        xprs[i] = if typ == PadByte
             nskip = prod(dims)
             :(skip($stream, $nskip); nothing)
         elseif isa(typ, CompositeKind)
@@ -235,7 +233,7 @@ function gen_writers(convert::Function, types::Array, struct_type, stream::Symbo
     elnum = 0
     for (typ, dims) in types
         elnum += 1
-        xpr = if typ == Nothing
+        xpr = if typ == PadByte
             nskip = prod(dims)
             elnum -= 1
             @gensym ii
@@ -343,7 +341,6 @@ unpack(str::String, ctyp) = unpack(IOString(str), ctyp)
 # Build cases where specific alignments are overridden using a Dict
 # assume alignment for T is nextpow2(sizeof(::Type{T})) unless specified
 alignment_for(typ) = nextpow2(sizeof(typ))
-alignment_for(::Type{Nothing}) = 1 # because it's really padding
 function alignment_for(typ, ttable, comp)
     if has(ttable, typ)
         ttable[typ]
