@@ -330,46 +330,95 @@ pack(composite) = @withIOString iostr pack(iostr, composite)
 unpack(str::String, s::Struct) = unpack(IOString(str), s)
 unpack(str::String, ctyp) = unpack(IOString(str), ctyp)
 
-# An alignment strategy is a function Type -> Integer
-# TODO: equivalent to __attribute__ (( align(n) ))
+## Alignment strategies ##
 
-# Build cases where specific alignments are overridden using a Dict
-# assume alignment for T is nextpow2(sizeof(::Type{T})) unless specified
-alignment_for(typ) = nextpow2(sizeof(typ))
-function alignment_for(typ, ttable, comp)
-    if has(ttable, typ)
-        ttable[typ]
+type DataAlign
+    ttable::Dict
+    # default::(Type -> Integer); used for bits types not in ttable
+    default::Function
+    # aggregate::(Vector{Integer} -> Integer); used for composite types not in ttable
+    aggregate::Function 
+end
+DataAlign(def::Function, agg::Function) = DataAlign(Dict{Type,Integer}(), def, agg)
+
+# default alignment for bitstype T is nextpow2(sizeof(::Type{T}))
+type_alignment_default(typ) = nextpow2(sizeof(typ))
+
+# default strategy
+align_default = DataAlign(type_alignment_default, max)
+
+# equivalent to __attribute__ (( __packed__ ))
+align_packed = DataAlign(_ -> 1, _ -> 1)
+
+# equivalent to #pragma pack(n)
+align_packmax(da::DataAlign, n::Integer) = DataAlign(
+    da.ttable,
+    _ -> min(type_alignment_default(_), n),
+    da.aggregate,
+    )
+
+# equivalent to __attribute__ (( align(n) ))
+align_structpack(da::DataAlign, n::Integer) = DataAlign(
+    da.ttable,
+    da.default,
+    _ -> n,
+    )
+
+# is there a more efficient way to do this?
+function merge(a::Dict, b::Dict)
+    c = Dict()
+    for (k, v) in a
+        c[k] = v
+    end
+    for (k, v) in b
+        c[k] = v
+    end
+    c
+end
+
+# provide an alignment table
+align_table(da::DataAlign, ttable::Dict) = DataAlign(
+    merge(da.ttable, ttable),
+    da.default,
+    da.aggregate,
+    )
+
+# convenience forms using a default alignment
+for fun in (:align_packmax, :align_structpack, :align_table)
+    @eval ($fun)(arg) = ($fun)(align_default, arg)
+end
+
+# Specific architectures
+align_x86_pc_linux_gnu = align_table(align_default,
+    {
+    Int64 => 4,
+    Uint64 => 4,
+    Float64 => 4,
+    })
+
+# Get alignment for a given type
+function alignment_for(strategy::DataAlign, typ::Type)
+    if has(strategy.ttable, typ)
+        strategy.ttable[typ]
     else
-        alignment_for(typ)
+        strategy.default(typ)
+    end
+end
+function alignment_for(strategy::DataAlign, tlist::Vector{Type})
+    if has(strategy.ttable, typ)
+        strategy.ttable[typ]
+    else
+        strategy.aggregate(tlist)
     end
 end
 
-# Build a strategy for a specific alignment ("#pragma pack(n)")
-function align_specific(n::Integer)
-    (typ) -> alignment_for(typ) < n ? alignment_for(typ) : n
-end
-
-# Fully packed ("#pragma pack(1)" or "__attribute__ (( __packed__ ))")
-align_packed(typ) = 1
-# Alignments are datatype sizes rounded to next power of two without exception
-align_default(typ) = alignment_for(typ)
-
-# Specific architectures
-align_x86_pc_linux_gnu(typ) = alignment_for(typ,
-                                            {
-                                             Int64 => 4,
-                                             Uint64 => 4,
-                                             Float64 => 4,
-                                             },
-                                            max)
-
 alignments(composite, strategy) = alignments(Struct(composite), strategy)
-alignments(s::Struct, strategy) = [strategy(tt[1]) | tt in s.types]
+alignments(s::Struct, strategy) = [alignment_for(strategy, tt[1]) | tt in s.types]
 
-function show_alignments(s::Struct, strategy)
+function show_alignments(s::Struct, strategy::DataAlign)
     aligns = alignments(s, strategy)
     for ((typ,), align) in zip(s.types, aligns)
         println("$typ: $align")
     end
-    println("Struct alignment: ")
+    println("Struct alignment: $(alignment_for(strategy, s.struct, aligns))")
 end
