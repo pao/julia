@@ -36,8 +36,11 @@ Struct{T}(::Type{T}) = Struct(T, NativeEndian)
 
 canonicalize(s::String) = replace(s, r"\s|#.*$"m, "")
 
-# An byte of padding
+# A byte of padding
 bitstype 8 PadByte
+write(s, x::PadByte) = write(s, uint8(0))
+read(s, ::Type{PadByte}) = read(s, Uint8)
+
 
 # TODO Handle strings and arrays
 function isbitsequivalent{T}(::Type{T})
@@ -201,10 +204,7 @@ function gen_readers(convert::Function, types::Array, stream::Symbol)
     xprs = similar(types)
     for i in 1:length(types)
         typ, dims = types[i]
-        xprs[i] = if typ == PadByte
-            nskip = prod(dims)
-            :(skip($stream, $nskip); nothing)
-        elseif isa(typ, CompositeKind)
+        xprs[i] = if isa(typ, CompositeKind)
             :(unpack($stream, $typ))
         elseif dims == 1
             :(($convert)(read($stream, $typ)))
@@ -233,12 +233,7 @@ function gen_writers(convert::Function, types::Array, struct_type, stream::Symbo
     elnum = 0
     for (typ, dims) in types
         elnum += 1
-        xpr = if typ == PadByte
-            nskip = prod(dims)
-            elnum -= 1
-            @gensym ii
-            :(for $ii = 1:nskip; write($stream, uint8(0)); end)
-        elseif isa(typ, CompositeKind)
+        xpr = if isa(typ, CompositeKind)
             :(pack($stream, getfield($struct, ($fieldnames)[$elnum])))
         elseif dims == 1
             :(write($stream, ($convert)(getfield($struct, ($fieldnames)[$elnum]))))
