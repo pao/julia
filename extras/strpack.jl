@@ -7,6 +7,7 @@ bswap(c::Char) = identity(c) # white lie which won't work for multibyte characte
 type Struct
     canonical::String
     endianness::String
+    types
     pack::Function
     unpack::Function
     struct::Type
@@ -29,7 +30,7 @@ function Struct{T}(::Type{T}, endianness)
     pack = struct_pack(packer, types, T)
     unpack = struct_unpack(unpacker, types, T)
     struct_utils(T)
-    STRUCTS[s] = Struct(s, endianness, pack, unpack, T, size)
+    STRUCTS[s] = Struct(s, endianness, types, pack, unpack, T, size)
 end
 Struct{T}(::Type{T}) = Struct(T, "native")
 
@@ -299,7 +300,7 @@ function interp_struct_parse(str::String)
     pack = struct_pack(packer, types, struct_type)
     unpack = struct_unpack(unpacker, types, struct_type)
     struct_utils(struct_type)
-    STRUCTS[s] = Struct(s, endianness, pack, unpack, struct_type, size)
+    STRUCTS[s] = Struct(s, endianness, types, pack, unpack, struct_type, size)
 end
 
 macro s_str(str)
@@ -337,3 +338,35 @@ pack(composite) = @withIOString iostr pack(iostr, composite)
 
 unpack(str::String, s::Struct) = unpack(IOString(str), s)
 unpack(str::String, ctyp) = unpack(IOString(str), ctyp)
+
+
+# An alignment strategy is a function Type -> Integer
+# TODO: equivalent to __attribute__ (( align(n) ))
+
+# Build cases where specific alignments are overridden
+# assume alignment for T is nextpow2(sizeof(::Type{T})) unless specified
+alignment_for(typ) = nextpow2(sizeof(typ))
+function alignment_for(typ, ht)
+    if has(ht, typ)
+        ht[typ]
+    else
+        alignment_for(typ)
+    end
+end
+
+# Build a strategy for a specific alignment ("#pragma pack(n)")
+alignment_specific(n::Integer)
+    (typ) -> sizeof(typ) < n ? alignment_for(typ) : n
+end
+
+# Fully packed ("#pragma pack(1)" or "__attribute__ (( __packed__ ))")
+align_packed(typ) = 1
+# Alignments are datatype sizes rounded to next power of two without exception
+align_default(typ) = alignment_for(typ)
+
+# Specific architectures
+align_x86_pc_linux_gnu(typ) = alignment_for(typ, {
+                                                  Int64 => 4,
+                                                  Uint64 => 4,
+                                                  Float64 => 4,
+                                                  })
