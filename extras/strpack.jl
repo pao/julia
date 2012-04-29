@@ -404,7 +404,7 @@ function alignment_for(strategy::DataAlign, typ::Type)
         strategy.default(typ)
     end
 end
-function alignment_for(strategy::DataAlign, typ::Type, tlist::Vector{Type})
+function alignment_for(strategy::DataAlign, typ::Type, tlist::Vector)
     if has(strategy.ttable, typ)
         strategy.ttable[typ]
     else
@@ -414,7 +414,7 @@ end
 
 alignments(composite, strategy) = alignments(Struct(composite), strategy)
 function alignments(s::Struct, strategy)
-    aligns = [alignment_for(strategy, tt[1]) | tt in s.types]
+    aligns = [alignment_for(strategy, typ) | (typ,) in s.types]
     (aligns, alignment_for(strategy, s.struct, aligns))
 end
 
