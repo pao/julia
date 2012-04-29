@@ -453,7 +453,7 @@ function show_struct_layout(s::Struct, strategy::DataAlign, width, bytesize)
         for i in 1:prod(dims)
             tstr = string(typ)
             tstr = tstr[1:min(sizeof(typ)*bytesize-2, length(tstr))]
-            str = sprintf("[%s%s]", tstr, repeat("-", bytesize*sizeof(typ)-2-length(tstr)))
+            str = sprintf("[%s%s]", tstr, "-"^(bytesize*sizeof(typ)-2-length(tstr)))
             typsize = sizeof(typ)
             while !isempty(str)
                 if offset % width == 0
@@ -475,5 +475,5 @@ function show_struct_layout(s::Struct, strategy::DataAlign, width, bytesize)
         println()
     end
 end
-show_struct_layout(s::Struct, strategy::DataAlign) = show_struct_pads(s, strategy, 8, 10)
-show_struct_layout(s::Struct, strategy::DataAlign, width) = show_struct_pads(s, strategy, width, 10)
+show_struct_layout(s::Struct, strategy::DataAlign) = show_struct_layout(s, strategy, 8, 10)
+show_struct_layout(s::Struct, strategy::DataAlign, width) = show_struct_layout(s, strategy, width, 10)
