@@ -447,7 +447,7 @@ function pad(s::Struct, strategy::DataAlign)
     newtypes
 end
 
-function show_struct_pads(s::Struct, strategy::DataAlign, width, bytesize)
+function show_struct_layout(s::Struct, strategy::DataAlign, width, bytesize)
     offset = 0
     for (typ, dims) in pad(s, strategy)
         for i in 1:prod(dims)
@@ -475,5 +475,5 @@ function show_struct_pads(s::Struct, strategy::DataAlign, width, bytesize)
         println()
     end
 end
-show_struct_pads(s::Struct, strategy::DataAlign) = show_struct_pads(s, strategy, 8, 10)
-show_struct_pads(s::Struct, strategy::DataAlign, width) = show_struct_pads(s, strategy, width, 10)
+show_struct_layout(s::Struct, strategy::DataAlign) = show_struct_pads(s, strategy, 8, 10)
+show_struct_layout(s::Struct, strategy::DataAlign, width) = show_struct_pads(s, strategy, width, 10)
