@@ -415,7 +415,7 @@ end
 alignments(composite, strategy) = alignments(Struct(composite), strategy)
 function alignments(s::Struct, strategy)
     aligns = [alignment_for(strategy, tt[1]) | tt in s.types]
-    (aligns , alignment_for(strategy, s.struct, aligns))
+    (aligns, alignment_for(strategy, s.struct, aligns))
 end
 
 function show_alignments(s::Struct, strategy::DataAlign)
