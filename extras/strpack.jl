@@ -447,24 +447,33 @@ function pad(s::Struct, strategy::DataAlign)
     newtypes
 end
 
-function show_struct_pads(s::Struct, strategy::DataAlign)
+function show_struct_pads(s::Struct, strategy::DataAlign, width, bytesize)
     offset = 0
-    width = 8
     for (typ, dims) in pad(s, strategy)
         for i in 1:prod(dims)
-            if offset % width == 0
-                printf("\n0x%04X ", offset)
+            tstr = string(typ)
+            tstr = tstr[1:min(sizeof(typ)*bytesize-2, length(tstr))]
+            str = sprintf("[%s%s]", tstr, repeat("-", bytesize*sizeof(typ)-2-length(tstr)))
+            typsize = sizeof(typ)
+            while !isempty(str)
+                if offset % width == 0
+                    printf("0x%04X ", offset)
+                end
+                len_prn = min(width - (offset % width), typsize)
+                nprint = bytesize*len_prn
+                print(str[1:nprint])
+                str = str[nprint+1:end]
+                typsize -= len_prn
+                offset += len_prn
+                if offset % width == 0
+                    println()
+                end
             end
-            len = (offset % width) + sizeof(typ) - width
-            str = sprintf("[%s%s]", typ, repeat("-", 10*sizeof(typ)-2-length(string(typ))))
-            if len <= 0
-                print(str)
-            else
-                printf("%s", str[1:10*(sizeof(typ)-len)])
-                printf("\n0x%04X ", offset+sizeof(typ)-len)
-                printf("%s", str[10*(sizeof(typ)-len)+1:end])
-            end
-            offset += sizeof(typ)
         end
     end
+    if offset % width != 0
+        println()
+    end
 end
+show_struct_pads(s::Struct, strategy::DataAlign) = show_struct_pads(s, strategy, 8, 10)
+show_struct_pads(s::Struct, strategy::DataAlign, width) = show_struct_pads(s, strategy, width, 10)
