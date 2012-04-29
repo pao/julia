@@ -404,7 +404,7 @@ function alignment_for(strategy::DataAlign, typ::Type)
         strategy.default(typ)
     end
 end
-function alignment_for(strategy::DataAlign, tlist::Vector{Type})
+function alignment_for(strategy::DataAlign, typ::Type, tlist::Vector{Type})
     if has(strategy.ttable, typ)
         strategy.ttable[typ]
     else
@@ -413,12 +413,58 @@ function alignment_for(strategy::DataAlign, tlist::Vector{Type})
 end
 
 alignments(composite, strategy) = alignments(Struct(composite), strategy)
-alignments(s::Struct, strategy) = [alignment_for(strategy, tt[1]) | tt in s.types]
+function alignments(s::Struct, strategy)
+    aligns = [alignment_for(strategy, tt[1]) | tt in s.types]
+    (aligns , alignment_for(strategy, s.struct, aligns))
+end
 
 function show_alignments(s::Struct, strategy::DataAlign)
-    aligns = alignments(s, strategy)
+    aligns, finalalign = alignments(s, strategy)
     for ((typ,), align) in zip(s.types, aligns)
         println("$typ: $align")
     end
-    println("Struct alignment: $(alignment_for(strategy, s.struct, aligns))")
+    println("Struct alignment: $finalalign")
+end
+
+function pad(s::Struct, strategy::DataAlign)
+    aligns, finalalign = alignments(s, strategy)
+    offset = 0
+    newtypes = {}
+    for ((typ, dims), align) in zip(s.types, aligns)
+        misalign = offset % align
+        if misalign > 0
+            fix = align - misalign
+            push(newtypes, (PadByte, fix))
+            offset += fix
+        end
+        push(newtypes, (typ, dims))
+        offset += sizeof(typ) * prod(dims)
+    end
+    misalign = offset % finalalign
+    if misalign > 0
+        push(newtypes, (PadByte, finalalign - misalign))
+    end
+    newtypes
+end
+
+function show_struct_pads(s::Struct, strategy::DataAlign)
+    offset = 0
+    width = 8
+    for (typ, dims) in pad(s, strategy)
+        for i in 1:prod(dims)
+            if offset % width == 0
+                printf("\n0x%04X ", offset)
+            end
+            len = (offset % width) + sizeof(typ) - width
+            str = sprintf("[%s%s]", typ, repeat("-", 10*sizeof(typ)-2-length(string(typ))))
+            if len <= 0
+                print(str)
+            else
+                printf("%s", str[1:10*(sizeof(typ)-len)])
+                printf("\n0x%04X ", offset+sizeof(typ)-len)
+                printf("%s", str[10*(sizeof(typ)-len)+1:end])
+            end
+            offset += sizeof(typ)
+        end
+    end
 end
