@@ -163,7 +163,7 @@ function struct_parse(s::String)
             end
         end
         i += length(m.match)
-        t = {t...; (elemtype, dims, name)}
+        push(t, (elemtype, dims, name))
     end
     (endianness, t)
 end
@@ -183,7 +183,7 @@ function gen_typelist(types::Array)
                 :(($fn)::($typ))
             end
         end
-        xprs = {xprs...; xpr}
+        push(xprs, xpr)
     end
     xprs         
 end
@@ -241,7 +241,7 @@ function gen_writers(convert::Function, types::Array, struct_type, stream::Symbo
             ranges = tuple([1:d for d in dims]...)
             :(write($stream, map($convert, ref(getfield($struct, ($fieldnames)[$elnum]), ($ranges)...))))
         end
-        xprs = {xprs...; xpr}
+        push(xprs, xpr)
     end
     xprs
 end
