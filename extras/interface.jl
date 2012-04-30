@@ -6,7 +6,7 @@ end
 type Interface
     name::String
     sigs::Vector{Signature}
-    tvar::Symbol
+    tvar
 end
 
 subst_type(sig, tpe, tvar) = tuple(map(t -> t == tvar ? tpe : eval(t), sig.args)...)
@@ -41,6 +41,13 @@ function verify_interface(iface::Interface, tpe::Type)
     all(hasmethods)
 end
 
-macro interface(name, tvar, sigs)
-    :($name = Interface($(string(name)), $sigs, $tvar))
+macro interface(name, sigs)
+    iname, tvar = if isa(name, Expr) && name.head == :curly
+        (name.args[1], name.args[2])
+    elseif isa(name, Symbol)
+        (name, :())
+    else
+        error("must be a Symbol or have a single type parameter")
+    end
+    :($iname = Interface($(string(iname)), $sigs, $expr(:quote,tvar)))
 end
