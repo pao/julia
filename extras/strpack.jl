@@ -414,7 +414,7 @@ end
 
 alignments(composite, strategy) = alignments(Struct(composite), strategy)
 function alignments(s::Struct, strategy)
-    aligns = [alignment_for(strategy, typ) | (typ,) in s.types]
+    aligns = [alignment_for(strategy, typ) for (typ,) in s.types]
     (aligns, alignment_for(strategy, s.struct, aligns))
 end
 
