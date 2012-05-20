@@ -34,6 +34,16 @@ function Struct{T}(::Type{T}, endianness)
 end
 Struct{T}(::Type{T}) = Struct(T, NativeEndian)
 
+# Represents a particular way of adding bytes to maintain certain alignments
+type DataAlign
+    ttable::Dict
+    # default::(Type -> Integer); used for bits types not in ttable
+    default::Function
+    # aggregate::(Vector{Type} -> Integer); used for composite types not in ttable
+    aggregate::Function
+end
+DataAlign(def::Function, agg::Function) = DataAlign(Dict{Type,Integer}(), def, agg)
+
 canonicalize(s::String) = replace(s, r"\s|#.*$"m, "")
 
 # A byte of padding
@@ -200,57 +210,79 @@ function gen_type(types)
 end
 
 # Generate an unpack function for a composite type
-function gen_readers(convert::Function, types::Array, stream::Symbol)
-    xprs = similar(types)
-    for i in 1:length(types)
-        typ, dims = types[i]
-        xprs[i] = if isa(typ, CompositeKind)
-            :(unpack($stream, $typ))
+function gen_readers(convert::Function, types::Array, stream::Symbol, offset::Symbol, strategy::Symbol)
+    xprs, rvars = {}, {}
+    @gensym pad
+    push(xprs, :($offset = 0))
+    for (typ, dims) in types
+        push(xprs, quote
+            $pad = pad_next($offset, $typ, $strategy)
+            if $pad > 0
+                skip($stream, $pad)
+                $offset += pad
+            end
+            $offset += sizeof($typ)*prod($dims)
+        end)
+        rvar = gensym()
+        push(rvars, rvar)
+        push(xprs, if isa(typ, CompositeKind)
+            :($rvar = unpack($stream, $typ))
         elseif dims == 1
-            :(($convert)(read($stream, $typ)))
+            :($rvar = ($convert)(read($stream, $typ)))
         else
-            :(map($convert, read($stream, $typ, $dims...)))
-        end
+            :($rvar = map($convert, read($stream, $typ, $dims...)))
+        end)
     end
-    xprs
+    xprs, rvars
 end
 function struct_unpack(convert, types, struct_type)
-    @gensym in
-    readers = gen_readers(convert, types, in)
+    @gensym in offset strategy
+    readers, rvars = gen_readers(convert, types, in, offset, strategy)
     unpackdef = quote
-        (($in)::IO) -> begin
-            # Can we be assured the order of evaluation of arguments?
-            ($struct_type)($(readers...))
+        (($in)::IO, ($strategy)::DataAlign) -> begin
+            $(readers...)
+            # tail pad
+            skip($in, pad_next($offset, $struct_type, $strategy))
+            ($struct_type)($(rvars...))
         end
     end
     eval(unpackdef)
 end
 
 # Generate a pack function for a composite type
-function gen_writers(convert::Function, types::Array, struct_type, stream::Symbol, struct::Symbol)
-    @gensym fieldnames
-    xprs = {:(local $fieldnames = $struct_type.names)}
+function gen_writers(convert::Function, types::Array, struct_type, stream::Symbol, struct::Symbol, offset::Symbol, strategy::Symbol)
+    @gensym fieldnames pad
+    xprs = {:(local $fieldnames = $struct_type.names), :($offset = 0)}
     elnum = 0
     for (typ, dims) in types
         elnum += 1
-        xpr = if isa(typ, CompositeKind)
+        push(xprs, quote
+            $pad = pad_next($offset, $typ, $strategy)
+            if $pad > 0
+                write($stream, fill(uint8(0), $pad))
+                $offset += $pad
+            end
+            $offset += sizeof($typ)*prod($dims)
+        end)
+        push(xprs, if isa(typ, CompositeKind)
             :(pack($stream, getfield($struct, ($fieldnames)[$elnum])))
         elseif dims == 1
             :(write($stream, ($convert)(getfield($struct, ($fieldnames)[$elnum]))))
         else
             ranges = tuple([1:d for d in dims]...)
             :(write($stream, map($convert, ref(getfield($struct, ($fieldnames)[$elnum]), ($ranges)...))))
-        end
-        push(xprs, xpr)
+        end)
     end
     xprs
 end
 function struct_pack(convert, types, struct_type)
-    @gensym out struct
-    writers = gen_writers(convert, types, struct_type, out, struct)
+    @gensym out struct offset strategy
+    writers = gen_writers(convert, types, struct_type, out, struct, offset, strategy)
     packdef = quote
-        (($out)::IO, ($struct)::($struct_type)) -> begin
+        (($out)::IO, ($strategy)::DataAlign, ($struct)::($struct_type)) -> begin
             $(writers...)
+            # tail pad
+            write($out, fill(uint8(0), pad_next($offset, $struct_type, $strategy)))
         end
     end
     eval(packdef)
@@ -299,18 +331,22 @@ macro s_str(str)
 end
 
 # Julian aliases for the "object-style" calls to pack/unpack/struct
-function pack(out::IO, s::Struct, struct_or_only_item)
+function pack(out::IO, s::Struct, strategy::DataAlign, struct_or_only_item)
     if isa(struct_or_only_item, s.struct)
-        s.pack(out, struct_or_only_item)
+        s.pack(out, strategy, struct_or_only_item)
     else
-        s.pack(out, s.struct(struct_or_only_item))
+        s.pack(out, strategy, s.struct(struct_or_only_item))
     end
 end
-pack{T}(out::IO, composite::T) = pack(out, Struct(T), composite)
-pack(out::IO, s::Struct, args...) = s.pack(out, s.struct(args...))
+pack{T}(out::IO, composite::T, strategy::DataAlign) = pack(out, Struct(T), strategy, composite)
+pack{T}(out::IO, composite::T) = pack(out, Struct(T), align_packed, composite)
+pack(out::IO, s::Struct, strategy::DataAlign, args...) = s.pack(out, strategy, s.struct(args...))
+pack(out::IO, s::Struct, args...) = s.pack(out, align_packed, s.struct(args...))
 
-unpack(in::IO, s::Struct) = s.unpack(in)
-unpack{T}(in::IO, ::Type{T}) = Struct(T).unpack(in)
+unpack(in::IO, s::Struct, strategy::DataAlign) = s.unpack(in, strategy)
+unpack(in::IO, s::Struct) = s.unpack(in, align_packed)
+unpack{T}(in::IO, ::Type{T}, strategy::DataAlign) = Struct(T).unpack(in, strategy)
+unpack{T}(in::IO, ::Type{T}) = Struct(T).unpack(in, align_packed)
 
 struct(s::Struct, items...) = s.struct(items...)
 sizeof(s::Struct) = s.size
@@ -323,6 +359,9 @@ macro withIOString(iostr, ex)
         $iostr
     end
 end
+pack(s::Struct, strategy::DataAlign, arg) = @withIOString iostr pack(iostr, s, strategy, arg)
+pack(s::Struct, strategy::DataAlign, args...) = @withIOString iostr pack(iostr, s, strategy, args...)
+pack(composite, strategy) = @withIOString iostr pack(iostr, composite, strategy)
 pack(s::Struct, arg) = @withIOString iostr pack(iostr, s, arg)
 pack(s::Struct, args...) = @withIOString iostr pack(iostr, s, args...)
 pack(composite) = @withIOString iostr pack(iostr, composite)
@@ -330,16 +369,7 @@ pack(composite) = @withIOString iostr pack(iostr, composite)
 unpack(str::String, s::Struct) = unpack(IOString(str), s)
 unpack(str::String, ctyp) = unpack(IOString(str), ctyp)
 
-## Alignment strategies ##
-
-type DataAlign
-    ttable::Dict
-    # default::(Type -> Integer); used for bits types not in ttable
-    default::Function
-    # aggregate::(Vector{Integer} -> Integer); used for composite types not in ttable
-    aggregate::Function 
-end
-DataAlign(def::Function, agg::Function) = DataAlign(Dict{Type,Integer}(), def, agg)
+## Alignment strategies and utility functions ##
 
 # default alignment for bitstype T is nextpow2(sizeof(::Type{T}))
 type_alignment_default(typ) = nextpow2(sizeof(typ))
@@ -428,10 +458,9 @@ function pad_next(offset, typ, strategy::DataAlign)
 end
 
 function pad(s::Struct, strategy::DataAlign)
-    aligns, finalalign = alignments(s, strategy)
     offset = 0
     newtypes = {}
-    for ((typ, dims), align) in zip(s.types, aligns)
+    for (typ, dims) in s.types
         fix = pad_next(offset, typ, strategy)
         if fix > 0
             push(newtypes, (PadByte, fix))
