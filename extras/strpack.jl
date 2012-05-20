@@ -345,7 +345,7 @@ DataAlign(def::Function, agg::Function) = DataAlign(Dict{Type,Integer}(), def, a
 type_alignment_default(typ) = nextpow2(sizeof(typ))
 
 # default strategy
-align_default = DataAlign(type_alignment_default, max)
+align_default = DataAlign(type_alignment_default, x -> max(map(type_alignment_default, x)))
 
 # equivalent to __attribute__ (( __packed__ ))
 align_packed = DataAlign(_ -> 1, _ -> 1)
@@ -400,22 +400,18 @@ align_x86_pc_linux_gnu = align_table(align_default,
 function alignment_for(strategy::DataAlign, typ::Type)
     if has(strategy.ttable, typ)
         strategy.ttable[typ]
+    elseif isa(typ, CompositeKind)
+        strategy.aggregate(map(x->x[1], Struct(typ).types))
     else
         strategy.default(typ)
     end
 end
-function alignment_for(strategy::DataAlign, typ::Type, tlist::Vector)
-    if has(strategy.ttable, typ)
-        strategy.ttable[typ]
+function alignment_for(strategy::DataAlign, s::Struct)
+    if has(strategy.ttable, s.struct)
+        strategy.ttable[s.struct]
     else
-        strategy.aggregate(tlist)
+        strategy.aggregate(map(x->x[1], s.types))
     end
-end
-
-alignments(composite, strategy) = alignments(Struct(composite), strategy)
-function alignments(s::Struct, strategy)
-    aligns = [alignment_for(strategy, typ) for (typ,) in s.types]
-    (aligns, alignment_for(strategy, s.struct, aligns))
 end
 
 function show_alignments(s::Struct, strategy::DataAlign)
@@ -426,23 +422,27 @@ function show_alignments(s::Struct, strategy::DataAlign)
     println("Struct alignment: $finalalign")
 end
 
+function pad_next(offset, typ, strategy::DataAlign)
+    align_to = alignment_for(strategy, typ)
+    (align_to - offset % align_to) % align_to
+end
+
 function pad(s::Struct, strategy::DataAlign)
     aligns, finalalign = alignments(s, strategy)
     offset = 0
     newtypes = {}
     for ((typ, dims), align) in zip(s.types, aligns)
-        misalign = offset % align
-        if misalign > 0
-            fix = align - misalign
+        fix = pad_next(offset, typ, strategy)
+        if fix > 0
             push(newtypes, (PadByte, fix))
             offset += fix
         end
         push(newtypes, (typ, dims))
         offset += sizeof(typ) * prod(dims)
     end
-    misalign = offset % finalalign
-    if misalign > 0
-        push(newtypes, (PadByte, finalalign - misalign))
+    fix = pad_next(offset, s, strategy)
+    if fix > 0
+        push(newtypes, (PadByte, fix))
     end
     newtypes
 end
